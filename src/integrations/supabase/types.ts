@@ -9,7 +9,123 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      articles: {
+        Row: {
+          content: string | null
+          crawled_at: string | null
+          created_at: string | null
+          id: number
+          source: string
+          title: string
+          url: string
+        }
+        Insert: {
+          content?: string | null
+          crawled_at?: string | null
+          created_at?: string | null
+          id?: never
+          source: string
+          title: string
+          url: string
+        }
+        Update: {
+          content?: string | null
+          crawled_at?: string | null
+          created_at?: string | null
+          id?: never
+          source?: string
+          title?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      crawler_configs: {
+        Row: {
+          active: boolean | null
+          check_interval: number | null
+          created_at: string | null
+          end_time: string | null
+          id: number
+          start_time: string | null
+          url: string
+        }
+        Insert: {
+          active?: boolean | null
+          check_interval?: number | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: never
+          start_time?: string | null
+          url: string
+        }
+        Update: {
+          active?: boolean | null
+          check_interval?: number | null
+          created_at?: string | null
+          end_time?: string | null
+          id?: never
+          start_time?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
+      keywords: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: number
+          term: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: never
+          term: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: never
+          term?: string
+        }
+        Relationships: []
+      }
+      matches: {
+        Row: {
+          article_id: number | null
+          created_at: string | null
+          id: number
+          keyword_id: number | null
+        }
+        Insert: {
+          article_id?: number | null
+          created_at?: string | null
+          id?: never
+          keyword_id?: number | null
+        }
+        Update: {
+          article_id?: number | null
+          created_at?: string | null
+          id?: never
+          keyword_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_keyword_id_fkey"
+            columns: ["keyword_id"]
+            isOneToOne: false
+            referencedRelation: "keywords"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
