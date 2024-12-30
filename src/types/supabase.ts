@@ -12,27 +12,30 @@ export interface Database {
       articles: {
         Row: {
           id: number
-          url: string
-          title: string | null
+          title: string
           content: string | null
+          url: string
+          source: string
           crawled_at: string
-          source: string | null
+          created_at: string
         }
         Insert: {
           id?: number
-          url: string
-          title?: string | null
+          title: string
           content?: string | null
+          url: string
+          source: string
           crawled_at?: string
-          source?: string | null
+          created_at?: string
         }
         Update: {
           id?: number
-          url?: string
-          title?: string | null
+          title?: string
           content?: string | null
+          url?: string
+          source?: string
           crawled_at?: string
-          source?: string | null
+          created_at?: string
         }
       }
       crawler_configs: {
@@ -43,6 +46,7 @@ export interface Database {
           end_time: string | null
           check_interval: number | null
           active: boolean
+          created_at: string
         }
         Insert: {
           id?: number
@@ -51,6 +55,7 @@ export interface Database {
           end_time?: string | null
           check_interval?: number | null
           active?: boolean
+          created_at?: string
         }
         Update: {
           id?: number
@@ -59,6 +64,7 @@ export interface Database {
           end_time?: string | null
           check_interval?: number | null
           active?: boolean
+          created_at?: string
         }
       }
       keywords: {
@@ -86,21 +92,30 @@ export interface Database {
           id: number
           article_id: number
           keyword_id: number
-          matched_at: string
+          created_at: string
         }
         Insert: {
           id?: number
           article_id: number
           keyword_id: number
-          matched_at?: string
+          created_at?: string
         }
         Update: {
           id?: number
           article_id?: number
           keyword_id?: number
-          matched_at?: string
+          created_at?: string
         }
       }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
     }
   }
 }
