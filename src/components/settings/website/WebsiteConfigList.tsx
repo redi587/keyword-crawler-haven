@@ -57,6 +57,30 @@ export const WebsiteConfigList = () => {
     },
   });
 
+  const crawlWebsite = useMutation({
+    mutationFn: async (url: string) => {
+      const { data, error } = await supabase.functions.invoke('crawl-website', {
+        body: { url },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Website crawled successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['articles'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to crawl website",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -89,13 +113,23 @@ export const WebsiteConfigList = () => {
               />
             </TableCell>
             <TableCell>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteConfig.mutate(config.id)}
-              >
-                Delete
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => crawlWebsite.mutate(config.url)}
+                  disabled={crawlWebsite.isPending}
+                >
+                  {crawlWebsite.isPending ? "Crawling..." : "Crawl"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => deleteConfig.mutate(config.id)}
+                >
+                  Delete
+                </Button>
+              </div>
             </TableCell>
           </TableRow>
         ))}

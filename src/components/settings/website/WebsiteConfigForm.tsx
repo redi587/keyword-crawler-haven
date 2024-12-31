@@ -52,6 +52,30 @@ export const WebsiteConfigForm = ({ onSuccess }: WebsiteConfigFormProps) => {
     },
   });
 
+  const crawlWebsite = useMutation({
+    mutationFn: async (url: string) => {
+      const { data, error } = await supabase.functions.invoke('crawl-website', {
+        body: { url },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Website crawled successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['articles'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to crawl website",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     addConfig.mutate({
@@ -61,6 +85,12 @@ export const WebsiteConfigForm = ({ onSuccess }: WebsiteConfigFormProps) => {
       check_interval: interval ? parseInt(interval) : null,
       active: true,
     });
+  };
+
+  const handleCrawl = () => {
+    if (newUrl) {
+      crawlWebsite.mutate(newUrl);
+    }
   };
 
   return (
@@ -102,9 +132,19 @@ export const WebsiteConfigForm = ({ onSuccess }: WebsiteConfigFormProps) => {
           />
         </div>
       </div>
-      <Button type="submit" disabled={addConfig.isPending}>
-        {addConfig.isPending ? "Adding..." : "Add Website"}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={addConfig.isPending}>
+          {addConfig.isPending ? "Adding..." : "Add Website"}
+        </Button>
+        <Button 
+          type="button" 
+          variant="secondary"
+          onClick={handleCrawl}
+          disabled={!newUrl || crawlWebsite.isPending}
+        >
+          {crawlWebsite.isPending ? "Crawling..." : "Crawl Now"}
+        </Button>
+      </div>
     </form>
   );
 };
