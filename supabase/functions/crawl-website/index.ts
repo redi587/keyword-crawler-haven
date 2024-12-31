@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import FirecrawlApp from 'npm:@mendable/firecrawl-js';
 
 const corsHeaders = {
@@ -8,14 +9,55 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { url } = await req.json();
-    console.log('Crawling URL:', url);
+    const { url, isScheduled = false } = await req.json();
+    console.log('Crawling URL:', url, 'Scheduled:', isScheduled);
+
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // If this is a scheduled crawl, check if we should proceed
+    if (isScheduled) {
+      const { data: config } = await supabaseClient
+        .from('crawler_configs')
+        .select('*')
+        .eq('url', url)
+        .single();
+
+      if (!config || !config.active) {
+        console.log('Skipping inactive configuration');
+        return new Response(
+          JSON.stringify({ message: 'Configuration inactive' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (config.start_time && config.end_time) {
+        const now = new Date();
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        
+        const [startHour, startMinute] = config.start_time.split(':').map(Number);
+        const [endHour, endMinute] = config.end_time.split(':').map(Number);
+        
+        const startMinutes = startHour * 60 + startMinute;
+        const endMinutes = endHour * 60 + endMinute;
+        
+        if (currentTime < startMinutes || currentTime > endMinutes) {
+          console.log('Outside of scheduled crawling hours');
+          return new Response(
+            JSON.stringify({ message: 'Outside of scheduled crawling hours' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
 
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!firecrawlApiKey) {
@@ -37,12 +79,6 @@ serve(async (req) => {
     if (!crawlResponse.success) {
       throw new Error(crawlResponse.error || 'Failed to crawl website');
     }
-
-    // Create Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     // Store crawled data in articles table
     for (const page of crawlResponse.data) {
@@ -88,17 +124,15 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ success: true }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Error in crawl-website function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
