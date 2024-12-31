@@ -47,6 +47,8 @@ serve(async (req) => {
         const startMinutes = startHour * 60 + startMinute;
         const endMinutes = endHour * 60 + endMinute;
         
+        console.log('Current time:', currentTime, 'Start:', startMinutes, 'End:', endMinutes);
+        
         if (currentTime < startMinutes || currentTime > endMinutes) {
           console.log('Outside of scheduled crawling hours');
           return new Response(

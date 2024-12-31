@@ -44,6 +44,23 @@ export const WebsiteConfigRow = ({
     onEdit(config.id, editValues);
   };
 
+  const formatTime = (time: string | null) => {
+    if (!time) return '-';
+    try {
+      // Convert 24-hour format to 12-hour format for display
+      const [hours, minutes] = time.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours), parseInt(minutes));
+      return date.toLocaleTimeString('en-US', { 
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true 
+      });
+    } catch (e) {
+      return time;
+    }
+  };
+
   const getNextCrawlTime = () => {
     if (!config.active || !config.check_interval) return null;
     const now = new Date();
@@ -55,9 +72,9 @@ export const WebsiteConfigRow = ({
       currentTime.setFullYear(1970, 0, 1);
       
       if (currentTime < startTime) {
-        return `Today at ${config.start_time}`;
+        return `Today at ${formatTime(config.start_time)}`;
       } else if (currentTime > endTime) {
-        return `Tomorrow at ${config.start_time}`;
+        return `Tomorrow at ${formatTime(config.start_time)}`;
       }
     }
     
@@ -78,7 +95,7 @@ export const WebsiteConfigRow = ({
             className="w-32"
           />
         ) : (
-          config.start_time || '-'
+          formatTime(config.start_time)
         )}
       </TableCell>
       <TableCell>
@@ -90,7 +107,7 @@ export const WebsiteConfigRow = ({
             className="w-32"
           />
         ) : (
-          config.end_time || '-'
+          formatTime(config.end_time)
         )}
       </TableCell>
       <TableCell>
@@ -128,29 +145,50 @@ export const WebsiteConfigRow = ({
         <div className="flex gap-2">
           {isEditing ? (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSave}
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onCancelEditing}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSave}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Save changes</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCancelEditing}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Cancel editing</p>
+                </TooltipContent>
+              </Tooltip>
             </>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onStartEditing}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onStartEditing}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit configuration</p>
+              </TooltipContent>
+            </Tooltip>
           )}
           <Tooltip>
             <TooltipTrigger asChild>
