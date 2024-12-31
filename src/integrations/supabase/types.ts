@@ -69,6 +69,27 @@ export type Database = {
         }
         Relationships: []
       }
+      email_configs: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          email: string
+          id: number
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          email: string
+          id?: never
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string
+          id?: never
+        }
+        Relationships: []
+      }
       keywords: {
         Row: {
           active: boolean | null

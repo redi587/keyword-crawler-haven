@@ -17,13 +17,11 @@ serve(async (req) => {
     const { url, isScheduled = false } = await req.json();
     console.log('Crawling URL:', url, 'Scheduled:', isScheduled);
 
-    // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // If this is a scheduled crawl, check if we should proceed
     if (isScheduled) {
       const { data: config } = await supabaseClient
         .from('crawler_configs')
@@ -80,7 +78,21 @@ serve(async (req) => {
       throw new Error(crawlResponse.error || 'Failed to crawl website');
     }
 
-    // Store crawled data in articles table
+    // Get active keywords for matching
+    const { data: keywords } = await supabaseClient
+      .from('keywords')
+      .select('id, term')
+      .eq('active', true);
+
+    // Get active email configurations
+    const { data: emailConfigs } = await supabaseClient
+      .from('email_configs')
+      .select('email')
+      .eq('active', true);
+
+    const matchedArticles = [];
+
+    // Store crawled data and check for matches
     for (const page of crawlResponse.data) {
       const { data: article, error: insertError } = await supabaseClient
         .from('articles')
@@ -99,20 +111,14 @@ serve(async (req) => {
         continue;
       }
 
-      // Get active keywords
-      const { data: keywords } = await supabaseClient
-        .from('keywords')
-        .select('id, term')
-        .eq('active', true);
-
       if (keywords) {
-        // Check for keyword matches in content
+        const matches = [];
         for (const keyword of keywords) {
           if (
             page.content?.toLowerCase().includes(keyword.term.toLowerCase()) ||
             page.title?.toLowerCase().includes(keyword.term.toLowerCase())
           ) {
-            // Create match record
+            matches.push(keyword);
             await supabaseClient
               .from('matches')
               .insert({
@@ -121,6 +127,39 @@ serve(async (req) => {
               });
           }
         }
+
+        if (matches.length > 0) {
+          matchedArticles.push({
+            article,
+            matches: matches.map(k => k.term),
+          });
+        }
+      }
+    }
+
+    // Send email notifications if there are matches
+    if (matchedArticles.length > 0 && emailConfigs?.length > 0) {
+      const emailContent = matchedArticles.map(({ article, matches }) => `
+        <h3>${article.title}</h3>
+        <p>Source: ${article.source}</p>
+        <p>URL: <a href="${article.url}">${article.url}</a></p>
+        <p>Matched Keywords: ${matches.join(', ')}</p>
+        <p>Content Preview: ${article.content?.substring(0, 200)}...</p>
+        <hr>
+      `).join('');
+
+      // Call send-email function for each email config
+      for (const config of emailConfigs) {
+        await supabaseClient.functions.invoke('send-email', {
+          body: {
+            to: [config.email],
+            subject: 'New Keyword Matches Found',
+            html: `
+              <h2>New Articles Matching Your Keywords</h2>
+              ${emailContent}
+            `,
+          },
+        });
       }
     }
 
