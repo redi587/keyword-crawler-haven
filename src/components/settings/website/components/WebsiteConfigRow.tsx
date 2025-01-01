@@ -41,6 +41,16 @@ export const WebsiteConfigRow = ({
   };
 
   const handleSave = () => {
+    // Validate time format before saving
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const startTimeValid = !editValues.start_time || timeRegex.test(editValues.start_time);
+    const endTimeValid = !editValues.end_time || timeRegex.test(editValues.end_time);
+
+    if (!startTimeValid || !endTimeValid) {
+      console.error('Invalid time format');
+      return;
+    }
+
     onEdit(config.id, editValues);
   };
 

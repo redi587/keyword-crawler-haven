@@ -1,5 +1,4 @@
 import { Input } from "@/components/ui/input";
-import { formatTime } from "@/lib/utils";
 
 interface TimeDisplayProps {
   time: string | null;
@@ -9,6 +8,24 @@ interface TimeDisplayProps {
 }
 
 export const TimeDisplay = ({ time, isEditing, onChange, label }: TimeDisplayProps) => {
+  const formatTime = (time: string | null): string => {
+    if (!time) return '-';
+    try {
+      // Ensure consistent 24-hour format
+      const [hours, minutes] = time.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours), parseInt(minutes));
+      return date.toLocaleTimeString('en-GB', { 
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch (e) {
+      console.error('Error formatting time:', e);
+      return '-';
+    }
+  };
+
   return isEditing ? (
     <Input
       type="time"
@@ -18,6 +35,6 @@ export const TimeDisplay = ({ time, isEditing, onChange, label }: TimeDisplayPro
       aria-label={label}
     />
   ) : (
-    formatTime(time)
+    <span>{formatTime(time)}</span>
   );
 };

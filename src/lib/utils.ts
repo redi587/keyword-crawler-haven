@@ -8,16 +8,17 @@ export function cn(...inputs: ClassValue[]) {
 export const formatTime = (time: string | null) => {
   if (!time) return '-';
   try {
-    // Convert 24-hour format to 12-hour format for display
+    // Convert to 24-hour format for display
     const [hours, minutes] = time.split(':');
     const date = new Date();
     date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric',
+    return date.toLocaleTimeString('en-GB', { 
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: false 
     });
   } catch (e) {
+    console.error('Error formatting time:', e);
     return time;
   }
 };
