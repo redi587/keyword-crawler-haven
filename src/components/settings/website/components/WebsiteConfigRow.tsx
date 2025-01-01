@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Check, X, Pencil, Play } from "lucide-react";
+import { TimeDisplay } from "./TimeDisplay";
+import { ActionButtons } from "./ActionButtons";
+import { getNextCrawlTime } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
 
 type CrawlerConfig = Database['public']['Tables']['crawler_configs']['Row'];
@@ -44,71 +44,26 @@ export const WebsiteConfigRow = ({
     onEdit(config.id, editValues);
   };
 
-  const formatTime = (time: string | null) => {
-    if (!time) return '-';
-    try {
-      // Convert 24-hour format to 12-hour format for display
-      const [hours, minutes] = time.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes));
-      return date.toLocaleTimeString('en-US', { 
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true 
-      });
-    } catch (e) {
-      return time;
-    }
-  };
-
-  const getNextCrawlTime = () => {
-    if (!config.active || !config.check_interval) return null;
-    const now = new Date();
-    const startTime = config.start_time ? new Date(`1970-01-01T${config.start_time}`) : null;
-    const endTime = config.end_time ? new Date(`1970-01-01T${config.end_time}`) : null;
-    
-    if (startTime && endTime) {
-      const currentTime = new Date();
-      currentTime.setFullYear(1970, 0, 1);
-      
-      if (currentTime < startTime) {
-        return `Today at ${formatTime(config.start_time)}`;
-      } else if (currentTime > endTime) {
-        return `Tomorrow at ${formatTime(config.start_time)}`;
-      }
-    }
-    
-    return `In ${config.check_interval} minutes`;
-  };
-
-  const nextCrawl = getNextCrawlTime();
+  const nextCrawl = getNextCrawlTime(config);
 
   return (
     <TableRow>
       <TableCell>{config.url}</TableCell>
       <TableCell>
-        {isEditing ? (
-          <Input
-            type="time"
-            value={editValues.start_time || ''}
-            onChange={(e) => handleChange('start_time', e.target.value)}
-            className="w-32"
-          />
-        ) : (
-          formatTime(config.start_time)
-        )}
+        <TimeDisplay
+          time={isEditing ? editValues.start_time : config.start_time}
+          isEditing={isEditing}
+          onChange={(value) => handleChange('start_time', value)}
+          label="Start Time"
+        />
       </TableCell>
       <TableCell>
-        {isEditing ? (
-          <Input
-            type="time"
-            value={editValues.end_time || ''}
-            onChange={(e) => handleChange('end_time', e.target.value)}
-            className="w-32"
-          />
-        ) : (
-          formatTime(config.end_time)
-        )}
+        <TimeDisplay
+          time={isEditing ? editValues.end_time : config.end_time}
+          isEditing={isEditing}
+          onChange={(value) => handleChange('end_time', value)}
+          label="End Time"
+        />
       </TableCell>
       <TableCell>
         {isEditing ? (
@@ -142,77 +97,14 @@ export const WebsiteConfigRow = ({
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex gap-2">
-          {isEditing ? (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSave}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Save changes</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onCancelEditing}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Cancel editing</p>
-                </TooltipContent>
-              </Tooltip>
-            </>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onStartEditing}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Edit configuration</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => onCrawl(config.url)}
-              >
-                <Play className="h-4 w-4 mr-1" />
-                Crawl
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Manually trigger a crawl of this website now</p>
-            </TooltipContent>
-          </Tooltip>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => onDelete(config.id)}
-          >
-            Delete
-          </Button>
-        </div>
+        <ActionButtons
+          isEditing={isEditing}
+          onSave={handleSave}
+          onCancel={onCancelEditing}
+          onStartEditing={onStartEditing}
+          onCrawl={() => onCrawl(config.url)}
+          onDelete={() => onDelete(config.id)}
+        />
       </TableCell>
     </TableRow>
   );
