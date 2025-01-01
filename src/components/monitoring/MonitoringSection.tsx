@@ -3,12 +3,42 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArticlesList } from "./ArticlesList";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export const MonitoringSection = () => {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [source, setSource] = useState("");
   const [keyword, setKeyword] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
+  const [dateError, setDateError] = useState<string | null>(null);
+
+  const validateDates = (from: string, to: string) => {
+    if (from && to) {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      if (fromDate > toDate) {
+        setDateError("'From' date cannot be later than 'To' date");
+        return false;
+      }
+    }
+    setDateError(null);
+    return true;
+  };
+
+  const handleDateChange = (field: 'from' | 'to', value: string) => {
+    const newRange = { ...dateRange, [field]: value };
+    setDateRange(newRange);
+    validateDates(newRange.from, newRange.to);
+  };
+
+  const handleClearFilters = () => {
+    setDateRange({ from: "", to: "" });
+    setSource("");
+    setKeyword("");
+    setSortOrder("newest");
+    setDateError(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -18,7 +48,8 @@ export const MonitoringSection = () => {
           <Input
             type="date"
             value={dateRange.from}
-            onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+            onChange={(e) => handleDateChange('from', e.target.value)}
+            max={dateRange.to || undefined}
           />
         </div>
         <div className="space-y-2">
@@ -26,7 +57,8 @@ export const MonitoringSection = () => {
           <Input
             type="date"
             value={dateRange.to}
-            onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+            onChange={(e) => handleDateChange('to', e.target.value)}
+            min={dateRange.from || undefined}
           />
         </div>
         <div className="space-y-2">
@@ -37,7 +69,8 @@ export const MonitoringSection = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Sources</SelectItem>
-              {/* Add dynamic sources here */}
+              <SelectItem value="website1">Website 1</SelectItem>
+              <SelectItem value="website2">Website 2</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -55,6 +88,13 @@ export const MonitoringSection = () => {
         </div>
       </div>
 
+      {dateError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{dateError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex gap-2">
         <Input
           placeholder="Filter by keyword"
@@ -62,7 +102,7 @@ export const MonitoringSection = () => {
           onChange={(e) => setKeyword(e.target.value)}
           className="max-w-sm"
         />
-        <Button variant="secondary">Clear Filters</Button>
+        <Button variant="secondary" onClick={handleClearFilters}>Clear Filters</Button>
       </div>
 
       <ArticlesList

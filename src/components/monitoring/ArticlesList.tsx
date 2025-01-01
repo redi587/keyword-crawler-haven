@@ -4,6 +4,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface ArticlesListProps {
   filters: {
@@ -18,35 +20,48 @@ export const ArticlesList = ({ filters }: ArticlesListProps) => {
   const queryClient = useQueryClient();
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
 
-  const { data: articles, isLoading } = useQuery({
+  const { data: articles, isLoading, error } = useQuery({
     queryKey: ['articles', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('articles')
-        .select(`
-          *,
-          matches:matches(
-            keyword:keywords(term)
-          )
-        `);
+      try {
+        let query = supabase
+          .from('articles')
+          .select(`
+            *,
+            matches:matches(
+              keyword:keywords(term)
+            )
+          `);
 
-      if (filters.dateRange.from) {
-        query = query.gte('crawled_at', filters.dateRange.from);
-      }
-      if (filters.dateRange.to) {
-        query = query.lte('crawled_at', filters.dateRange.to);
-      }
-      if (filters.source) {
-        query = query.eq('source', filters.source);
-      }
-      
-      query = query.order('crawled_at', { 
-        ascending: filters.sortOrder === 'oldest' 
-      });
+        if (filters.dateRange.from) {
+          // Convert local date to UTC for consistent comparison
+          const fromDate = new Date(filters.dateRange.from);
+          query = query.gte('crawled_at', fromDate.toISOString());
+        }
+        if (filters.dateRange.to) {
+          // Convert local date to UTC and set to end of day
+          const toDate = new Date(filters.dateRange.to);
+          toDate.setHours(23, 59, 59, 999);
+          query = query.lte('crawled_at', toDate.toISOString());
+        }
+        if (filters.source && filters.source !== 'all') {
+          query = query.eq('source', filters.source);
+        }
+        if (filters.keyword) {
+          query = query.textSearch('title', filters.keyword);
+        }
+        
+        query = query.order('crawled_at', { 
+          ascending: filters.sortOrder === 'oldest' 
+        });
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+        const { data, error } = await query;
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error fetching articles:', error);
+        throw error;
+      }
     },
   });
 
@@ -81,7 +96,29 @@ export const ArticlesList = ({ filters }: ArticlesListProps) => {
   }, [queryClient]);
 
   if (isLoading) {
-    return <div>Loading articles...</div>;
+    return <div className="text-center py-4">Loading articles...</div>;
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Error loading articles. Please try again later.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!articles?.length) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          No articles found matching your criteria. Try adjusting your filters.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
