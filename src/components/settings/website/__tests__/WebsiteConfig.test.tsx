@@ -3,6 +3,7 @@ import { WebsiteConfig } from '../WebsiteConfig';
 import { supabase } from '@/lib/supabase';
 import { vi, describe, test, expect, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@testing-library/jest-dom';
 
 // Mock Supabase client
 vi.mock('@/lib/supabase', () => ({
@@ -59,7 +60,7 @@ describe('WebsiteConfig Component', () => {
       check_interval: 30,
     };
 
-    (supabase.from().select as jest.Mock).mockResolvedValueOnce({
+    (supabase.from().select as any).mockResolvedValueOnce({
       data: [mockConfig],
       error: null,
     });
