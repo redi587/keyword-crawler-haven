@@ -60,7 +60,7 @@ describe('WebsiteConfig Component', () => {
       check_interval: 30,
     };
 
-    (supabase.from().select as any).mockResolvedValueOnce({
+    vi.mocked(supabase.from().select).mockResolvedValueOnce({
       data: [mockConfig],
       error: null,
     });
