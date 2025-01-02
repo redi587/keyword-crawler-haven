@@ -60,10 +60,15 @@ describe('WebsiteConfig Component', () => {
       check_interval: 30,
     };
 
-    vi.mocked(supabase.from().select).mockResolvedValueOnce({
+    const mockResponse = {
       data: [mockConfig],
       error: null,
-    });
+      count: null,
+      status: 200,
+      statusText: 'OK',
+    };
+
+    vi.mocked(supabase.from('crawler_configs').select).mockResolvedValueOnce(mockResponse);
 
     render(<WebsiteConfig />, { wrapper: createWrapper() });
     
