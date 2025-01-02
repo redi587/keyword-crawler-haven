@@ -15,7 +15,18 @@ serve(async (req) => {
 
   try {
     const { url, isScheduled = false } = await req.json();
-    console.log('Crawling URL:', url, 'Scheduled:', isScheduled);
+    console.log('[Crawler] Starting crawl for URL:', url, 'Scheduled:', isScheduled);
+
+    // Validate URL format
+    try {
+      new URL(url);
+    } catch (e) {
+      console.error('[Crawler] Invalid URL format:', url);
+      return new Response(
+        JSON.stringify({ error: 'Invalid URL format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -23,6 +34,7 @@ serve(async (req) => {
     );
 
     if (isScheduled) {
+      console.log('[Crawler] Checking configuration for scheduled crawl');
       const { data: config } = await supabaseClient
         .from('crawler_configs')
         .select('*')
@@ -30,7 +42,7 @@ serve(async (req) => {
         .single();
 
       if (!config || !config.active) {
-        console.log('Skipping inactive configuration');
+        console.log('[Crawler] Skipping inactive configuration for URL:', url);
         return new Response(
           JSON.stringify({ message: 'Configuration inactive' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -47,10 +59,10 @@ serve(async (req) => {
         const startMinutes = startHour * 60 + startMinute;
         const endMinutes = endHour * 60 + endMinute;
         
-        console.log('Current time:', currentTime, 'Start:', startMinutes, 'End:', endMinutes);
+        console.log('[Crawler] Time check - Current:', currentTime, 'Start:', startMinutes, 'End:', endMinutes);
         
         if (currentTime < startMinutes || currentTime > endMinutes) {
-          console.log('Outside of scheduled crawling hours');
+          console.log('[Crawler] Outside of scheduled crawling hours for URL:', url);
           return new Response(
             JSON.stringify({ message: 'Outside of scheduled crawling hours' }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -61,11 +73,14 @@ serve(async (req) => {
 
     const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!firecrawlApiKey) {
+      console.error('[Crawler] Firecrawl API key not found');
       throw new Error('Firecrawl API key not found');
     }
 
+    console.log('[Crawler] Initializing Firecrawl client');
     const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey });
     
+    console.log('[Crawler] Starting crawl request for URL:', url);
     const crawlResponse = await firecrawl.crawlUrl(url, {
       scrapeOptions: {
         formats: ['markdown', 'html'],
@@ -77,8 +92,11 @@ serve(async (req) => {
     });
 
     if (!crawlResponse.success) {
+      console.error('[Crawler] Crawl failed for URL:', url, 'Error:', crawlResponse.error);
       throw new Error(crawlResponse.error || 'Failed to crawl website');
     }
+
+    console.log('[Crawler] Successfully crawled URL:', url, 'Pages found:', crawlResponse.data.length);
 
     // Get active keywords for matching
     const { data: keywords } = await supabaseClient
@@ -86,16 +104,22 @@ serve(async (req) => {
       .select('id, term')
       .eq('active', true);
 
+    console.log('[Crawler] Found active keywords:', keywords?.length || 0);
+
     // Get active email configurations
     const { data: emailConfigs } = await supabaseClient
       .from('email_configs')
       .select('email')
       .eq('active', true);
 
+    console.log('[Crawler] Found active email configurations:', emailConfigs?.length || 0);
+
     const matchedArticles = [];
 
     // Store crawled data and check for matches
     for (const page of crawlResponse.data) {
+      console.log('[Crawler] Processing page:', page.url);
+      
       const { data: article, error: insertError } = await supabaseClient
         .from('articles')
         .insert({
@@ -109,9 +133,11 @@ serve(async (req) => {
         .single();
 
       if (insertError) {
-        console.error('Error inserting article:', insertError);
+        console.error('[Crawler] Error inserting article:', insertError);
         continue;
       }
+
+      console.log('[Crawler] Successfully stored article:', article.id);
 
       if (keywords) {
         const matches = [];
@@ -121,6 +147,8 @@ serve(async (req) => {
             page.title?.toLowerCase().includes(keyword.term.toLowerCase())
           ) {
             matches.push(keyword);
+            console.log('[Crawler] Found keyword match:', keyword.term, 'in article:', article.id);
+            
             await supabaseClient
               .from('matches')
               .insert({
@@ -139,8 +167,12 @@ serve(async (req) => {
       }
     }
 
+    console.log('[Crawler] Total matched articles:', matchedArticles.length);
+
     // Send email notifications if there are matches
     if (matchedArticles.length > 0 && emailConfigs?.length > 0) {
+      console.log('[Crawler] Preparing email notifications');
+      
       const emailContent = matchedArticles.map(({ article, matches }) => `
         <h3>${article.title}</h3>
         <p>Source: ${article.source}</p>
@@ -152,6 +184,8 @@ serve(async (req) => {
 
       // Call send-email function for each email config
       for (const config of emailConfigs) {
+        console.log('[Crawler] Sending email notification to:', config.email);
+        
         await supabaseClient.functions.invoke('send-email', {
           body: {
             to: [config.email],
@@ -165,12 +199,22 @@ serve(async (req) => {
       }
     }
 
+    console.log('[Crawler] Crawl completed successfully for URL:', url);
     return new Response(
       JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error in crawl-website function:', error);
+    console.error('[Crawler] Error in crawl-website function:', error);
+    
+    // Handle rate limiting errors specifically
+    if (error.message?.includes('rate limit')) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
