@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import FirecrawlApp from 'npm:@mendable/firecrawl-js';
+import { FirecrawlService } from "./services/firecrawl.ts";
+import { DatabaseService } from "./services/database.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,19 +28,20 @@ serve(async (req) => {
       );
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
+    if (!firecrawlApiKey) {
+      throw new Error('Firecrawl API key not found');
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+    const db = new DatabaseService(supabaseUrl, supabaseKey);
+    const crawler = new FirecrawlService(firecrawlApiKey);
 
     if (isScheduled) {
-      console.log('[Crawler] Checking configuration for scheduled crawl');
-      const { data: config } = await supabaseClient
-        .from('crawler_configs')
-        .select('*')
-        .eq('url', url)
-        .single();
-
+      const config = await db.validateScheduledCrawl(url);
+      
       if (!config || !config.active) {
         console.log('[Crawler] Skipping inactive configuration for URL:', url);
         return new Response(
@@ -71,72 +72,21 @@ serve(async (req) => {
       }
     }
 
-    const firecrawlApiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    if (!firecrawlApiKey) {
-      console.error('[Crawler] Firecrawl API key not found');
-      throw new Error('Firecrawl API key not found');
-    }
+    const crawledPages = await crawler.crawlUrl({ url, isScheduled });
+    console.log('[Crawler] Successfully crawled pages:', crawledPages.length);
 
-    console.log('[Crawler] Initializing Firecrawl client');
-    const firecrawl = new FirecrawlApp({ apiKey: firecrawlApiKey });
-    
-    console.log('[Crawler] Starting crawl request for URL:', url);
-    const crawlResponse = await firecrawl.crawlUrl(url, {
-      scrapeOptions: {
-        formats: ['markdown', 'html'],
-        selectors: {
-          title: 'h1, title',
-          content: 'article, main, .content, .article-content',
-        },
-      },
-    });
-
-    if (!crawlResponse.success) {
-      console.error('[Crawler] Crawl failed for URL:', url, 'Error:', crawlResponse.error);
-      throw new Error(crawlResponse.error || 'Failed to crawl website');
-    }
-
-    console.log('[Crawler] Successfully crawled URL:', url, 'Pages found:', crawlResponse.data.length);
-
-    // Get active keywords for matching
-    const { data: keywords } = await supabaseClient
-      .from('keywords')
-      .select('id, term')
-      .eq('active', true);
-
+    const keywords = await db.getActiveKeywords();
     console.log('[Crawler] Found active keywords:', keywords?.length || 0);
 
-    // Get active email configurations
-    const { data: emailConfigs } = await supabaseClient
-      .from('email_configs')
-      .select('email')
-      .eq('active', true);
-
+    const emailConfigs = await db.getActiveEmailConfigs();
     console.log('[Crawler] Found active email configurations:', emailConfigs?.length || 0);
 
     const matchedArticles = [];
 
-    // Store crawled data and check for matches
-    for (const page of crawlResponse.data) {
+    for (const page of crawledPages) {
       console.log('[Crawler] Processing page:', page.url);
       
-      const { data: article, error: insertError } = await supabaseClient
-        .from('articles')
-        .insert({
-          url: page.url,
-          title: page.title || 'Untitled',
-          content: page.content,
-          source: new URL(url).hostname,
-          crawled_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('[Crawler] Error inserting article:', insertError);
-        continue;
-      }
-
+      const article = await db.storeArticle(page);
       console.log('[Crawler] Successfully stored article:', article.id);
 
       if (keywords) {
@@ -148,13 +98,7 @@ serve(async (req) => {
           ) {
             matches.push(keyword);
             console.log('[Crawler] Found keyword match:', keyword.term, 'in article:', article.id);
-            
-            await supabaseClient
-              .from('matches')
-              .insert({
-                article_id: article.id,
-                keyword_id: keyword.id,
-              });
+            await db.storeMatch(article.id, keyword.id);
           }
         }
 
@@ -169,33 +113,10 @@ serve(async (req) => {
 
     console.log('[Crawler] Total matched articles:', matchedArticles.length);
 
-    // Send email notifications if there are matches
     if (matchedArticles.length > 0 && emailConfigs?.length > 0) {
       console.log('[Crawler] Preparing email notifications');
-      
-      const emailContent = matchedArticles.map(({ article, matches }) => `
-        <h3>${article.title}</h3>
-        <p>Source: ${article.source}</p>
-        <p>URL: <a href="${article.url}">${article.url}</a></p>
-        <p>Matched Keywords: ${matches.join(', ')}</p>
-        <p>Content Preview: ${article.content?.substring(0, 200)}...</p>
-        <hr>
-      `).join('');
-
-      // Call send-email function for each email config
       for (const config of emailConfigs) {
-        console.log('[Crawler] Sending email notification to:', config.email);
-        
-        await supabaseClient.functions.invoke('send-email', {
-          body: {
-            to: [config.email],
-            subject: 'New Keyword Matches Found',
-            html: `
-              <h2>New Articles Matching Your Keywords</h2>
-              ${emailContent}
-            `,
-          },
-        });
+        await db.sendEmailNotification(config, matchedArticles);
       }
     }
 
@@ -207,7 +128,6 @@ serve(async (req) => {
   } catch (error) {
     console.error('[Crawler] Error in crawl-website function:', error);
     
-    // Handle rate limiting errors specifically
     if (error.message?.includes('rate limit')) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded' }),
