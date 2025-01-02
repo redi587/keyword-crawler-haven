@@ -11,15 +11,9 @@ export const TimeDisplay = ({ time, isEditing, onChange, label }: TimeDisplayPro
   const formatTime = (time: string | null): string => {
     if (!time) return '-';
     try {
-      // Ensure consistent 24-hour format
-      const [hours, minutes] = time.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes));
-      return date.toLocaleTimeString('en-GB', { 
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
+      // Parse the time string and ensure it's in 24-hour format
+      const [hours, minutes] = time.split(':').map(num => num.padStart(2, '0'));
+      return `${hours}:${minutes}`;
     } catch (e) {
       console.error('Error formatting time:', e);
       return '-';
