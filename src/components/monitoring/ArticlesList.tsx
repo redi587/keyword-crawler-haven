@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { supabase } from "@/lib/supabase";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { getLocalISOString } from "@/lib/timeUtils";
+import { TimeStampCell } from "./components/TimeStampCell";
+import { ArticlePreviewDialog } from "./components/ArticlePreviewDialog";
+import { useArticlePreview } from "./hooks/useArticlePreview";
 
 interface ArticlesListProps {
   filters: {
@@ -18,7 +21,7 @@ interface ArticlesListProps {
 
 export const ArticlesList = ({ filters }: ArticlesListProps) => {
   const queryClient = useQueryClient();
-  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const { selectedArticle, setSelectedArticle } = useArticlePreview();
 
   const { data: articles, isLoading, error } = useQuery({
     queryKey: ['articles', filters],
@@ -34,15 +37,13 @@ export const ArticlesList = ({ filters }: ArticlesListProps) => {
           `);
 
         if (filters.dateRange.from) {
-          // Convert local date to UTC for consistent comparison
           const fromDate = new Date(filters.dateRange.from);
-          query = query.gte('crawled_at', fromDate.toISOString());
+          query = query.gte('crawled_at', getLocalISOString(fromDate));
         }
         if (filters.dateRange.to) {
-          // Convert local date to UTC and set to end of day
           const toDate = new Date(filters.dateRange.to);
           toDate.setHours(23, 59, 59, 999);
-          query = query.lte('crawled_at', toDate.toISOString());
+          query = query.lte('crawled_at', getLocalISOString(toDate));
         }
         if (filters.source && filters.source !== 'all') {
           query = query.eq('source', filters.source);
@@ -146,7 +147,7 @@ export const ArticlesList = ({ filters }: ArticlesListProps) => {
                     .join(", ")}
                 </TableCell>
                 <TableCell>
-                  {new Date(article.crawled_at).toLocaleString()}
+                  <TimeStampCell timestamp={article.crawled_at} />
                 </TableCell>
                 <TableCell>
                   <Button
@@ -163,42 +164,10 @@ export const ArticlesList = ({ filters }: ArticlesListProps) => {
         </Table>
       </div>
 
-      <Dialog open={!!selectedArticle} onOpenChange={() => setSelectedArticle(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedArticle?.title}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <strong>Source:</strong> {selectedArticle?.source}
-            </div>
-            <div>
-              <strong>URL:</strong>{" "}
-              <a
-                href={selectedArticle?.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                {selectedArticle?.url}
-              </a>
-            </div>
-            <div>
-              <strong>Matched Keywords:</strong>{" "}
-              {selectedArticle?.matches
-                ?.map((match) => match.keyword?.term)
-                .filter(Boolean)
-                .join(", ")}
-            </div>
-            <div>
-              <strong>Content:</strong>
-              <div className="mt-2 prose max-w-none">
-                {selectedArticle?.content}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ArticlePreviewDialog 
+        article={selectedArticle} 
+        onClose={() => setSelectedArticle(null)} 
+      />
     </>
   );
 };
