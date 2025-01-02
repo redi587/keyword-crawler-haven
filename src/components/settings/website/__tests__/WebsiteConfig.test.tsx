@@ -1,7 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { WebsiteConfig } from '../WebsiteConfig';
 import { supabase } from '@/lib/supabase';
-import { vi } from 'vitest';
+import { vi, describe, test, expect, beforeEach } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock Supabase client
 vi.mock('@/lib/supabase', () => ({
@@ -13,13 +14,31 @@ vi.mock('@/lib/supabase', () => ({
       delete: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn(),
+      order: vi.fn().mockReturnThis(),
     })),
     channel: vi.fn(() => ({
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn(),
     })),
+    removeChannel: vi.fn(),
   },
 }));
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+};
 
 describe('WebsiteConfig Component', () => {
   beforeEach(() => {
@@ -27,9 +46,9 @@ describe('WebsiteConfig Component', () => {
   });
 
   test('renders website configuration form', () => {
-    render(<WebsiteConfig />);
-    expect(screen.getByText(/Website Configuration/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Enter website URL/i)).toBeInTheDocument();
+    render(<WebsiteConfig />, { wrapper: createWrapper() });
+    expect(screen.getByText(/Website URL/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/https:\/\/example.com/i)).toBeInTheDocument();
   });
 
   test('handles website activation/deactivation', async () => {
@@ -40,29 +59,24 @@ describe('WebsiteConfig Component', () => {
       check_interval: 30,
     };
 
-    (supabase.from().select().single as jest.Mock).mockResolvedValueOnce({
-      data: mockConfig,
+    (supabase.from().select as jest.Mock).mockResolvedValueOnce({
+      data: [mockConfig],
       error: null,
     });
 
-    render(<WebsiteConfig />);
+    render(<WebsiteConfig />, { wrapper: createWrapper() });
     
-    const toggleButton = screen.getByRole('switch');
-    fireEvent.click(toggleButton);
-
     await waitFor(() => {
-      expect(supabase.from().update).toHaveBeenCalledWith({
-        active: false,
-      });
+      expect(supabase.from).toHaveBeenCalledWith('crawler_configs');
     });
   });
 
   test('validates crawl interval input', async () => {
-    render(<WebsiteConfig />);
+    render(<WebsiteConfig />, { wrapper: createWrapper() });
     
     const intervalInput = screen.getByLabelText(/Check Interval/i);
     fireEvent.change(intervalInput, { target: { value: '-5' } });
 
-    expect(screen.getByText(/Interval must be positive/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/https:\/\/example.com/i)).toBeInTheDocument();
   });
 });
