@@ -1,5 +1,4 @@
 import { Input } from "@/components/ui/input";
-import { formatTime } from "@/lib/utils";
 
 interface TimeDisplayProps {
   time: string | null;
@@ -21,5 +20,16 @@ export const TimeDisplay = ({ time, isEditing, onChange, label }: TimeDisplayPro
     );
   }
 
-  return <span>{formatTime(time)}</span>;
+  // If there's no time set, show a dash
+  if (!time) return <span>-</span>;
+
+  // Format the time for display (HH:MM)
+  try {
+    const [hours, minutes] = time.split(':');
+    const formattedTime = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    return <span>{formattedTime}</span>;
+  } catch (e) {
+    console.error('Error formatting time:', e);
+    return <span>{time}</span>;
+  }
 };

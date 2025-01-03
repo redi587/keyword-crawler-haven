@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { TimeDisplay } from "./TimeDisplay";
-import { formatTime, getNextCrawlTime } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
 
 type CrawlerConfig = Database['public']['Tables']['crawler_configs']['Row'];
@@ -112,9 +111,6 @@ export const WebsiteConfigRow = ({
           checked={config.active || false}
           onCheckedChange={(checked) => onToggleActive(config.id, checked)}
         />
-      </td>
-      <td className="p-2">
-        {getNextCrawlTime(config)}
       </td>
       <td className="p-2">
         <div className="flex gap-2">
