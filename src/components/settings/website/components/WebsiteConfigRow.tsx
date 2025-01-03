@@ -1,10 +1,8 @@
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { TableCell, TableRow } from "@/components/ui/table";
 import { TimeDisplay } from "./TimeDisplay";
-import { ActionButtons } from "./ActionButtons";
-import { getNextCrawlTime } from "@/lib/utils";
+import { formatTime, getNextCrawlTime } from "@/lib/utils";
 import type { Database } from "@/types/supabase";
 
 type CrawlerConfig = Database['public']['Tables']['crawler_configs']['Row'];
@@ -30,82 +28,123 @@ export const WebsiteConfigRow = ({
   onStartEditing,
   onCancelEditing,
 }: WebsiteConfigRowProps) => {
-  const [editValues, setEditValues] = useState<Partial<CrawlerConfig>>({
-    start_time: config.start_time || '',
-    end_time: config.end_time || '',
-    check_interval: config.check_interval || 0,
+  const [editValues, setEditValues] = useState({
+    url: config.url,
+    start_time: config.start_time,
+    end_time: config.end_time,
+    check_interval: config.check_interval,
   });
 
-  const handleChange = (field: keyof CrawlerConfig, value: string | number) => {
-    setEditValues(prev => ({ ...prev, [field]: value }));
+  const handleTimeChange = (field: 'start_time' | 'end_time') => (value: string) => {
+    setEditValues(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleIntervalChange = (value: string) => {
+    const interval = value ? parseInt(value) : null;
+    setEditValues(prev => ({
+      ...prev,
+      check_interval: interval,
+    }));
   };
 
   const handleSave = () => {
+    // Validate time format before saving
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const startTimeValid = !editValues.start_time || timeRegex.test(editValues.start_time);
+    const endTimeValid = !editValues.end_time || timeRegex.test(editValues.end_time);
+
+    if (!startTimeValid || !endTimeValid) {
+      console.error('Invalid time format');
+      return;
+    }
+
     onEdit(config.id, editValues);
   };
 
-  const nextCrawl = getNextCrawlTime(config);
-
   return (
-    <TableRow>
-      <TableCell>{config.url}</TableCell>
-      <TableCell>
+    <tr className="border-b">
+      <td className="p-2">
+        {isEditing ? (
+          <input
+            type="url"
+            value={editValues.url}
+            onChange={(e) => setEditValues(prev => ({ ...prev, url: e.target.value }))}
+            className="w-full p-1 border rounded"
+          />
+        ) : (
+          config.url
+        )}
+      </td>
+      <td className="p-2">
         <TimeDisplay
           time={isEditing ? editValues.start_time : config.start_time}
           isEditing={isEditing}
-          onChange={(value) => handleChange('start_time', value)}
+          onChange={handleTimeChange('start_time')}
           label="Start Time"
         />
-      </TableCell>
-      <TableCell>
+      </td>
+      <td className="p-2">
         <TimeDisplay
           time={isEditing ? editValues.end_time : config.end_time}
           isEditing={isEditing}
-          onChange={(value) => handleChange('end_time', value)}
+          onChange={handleTimeChange('end_time')}
           label="End Time"
         />
-      </TableCell>
-      <TableCell>
+      </td>
+      <td className="p-2">
         {isEditing ? (
-          <Input
+          <input
             type="number"
             value={editValues.check_interval || ''}
-            onChange={(e) => handleChange('check_interval', parseInt(e.target.value) || 0)}
+            onChange={(e) => handleIntervalChange(e.target.value)}
+            className="w-20 p-1 border rounded"
             min="1"
-            className="w-24"
           />
         ) : (
-          config.check_interval ? `${config.check_interval} min` : '-'
+          config.check_interval || '-'
         )}
-      </TableCell>
-      <TableCell>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={config.active}
-              onCheckedChange={(checked) => onToggleActive(config.id, checked)}
-            />
-            <span className="text-sm">
-              {config.active ? 'Active' : 'Inactive'}
-            </span>
-          </div>
-          {config.active && nextCrawl && (
-            <span className="text-xs text-muted-foreground">
-              Next: {nextCrawl}
-            </span>
+      </td>
+      <td className="p-2">
+        <Switch
+          checked={config.active || false}
+          onCheckedChange={(checked) => onToggleActive(config.id, checked)}
+        />
+      </td>
+      <td className="p-2">
+        {getNextCrawlTime(config)}
+      </td>
+      <td className="p-2">
+        <div className="flex gap-2">
+          {isEditing ? (
+            <>
+              <Button size="sm" onClick={handleSave}>Save</Button>
+              <Button size="sm" variant="outline" onClick={onCancelEditing}>Cancel</Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={onStartEditing}>Edit</Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => onDelete(config.id)}
+                className="text-red-500 hover:text-red-700"
+              >
+                Delete
+              </Button>
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => onCrawl(config.url)}
+              >
+                Crawl Now
+              </Button>
+            </>
           )}
         </div>
-      </TableCell>
-      <TableCell>
-        <ActionButtons
-          isEditing={isEditing}
-          onSave={handleSave}
-          onCancel={onCancelEditing}
-          onStartEditing={onStartEditing}
-          onCrawl={() => onCrawl(config.url)}
-          onDelete={() => onDelete(config.id)}
-        />
-      </TableCell>
-    </TableRow>
+      </td>
+    </tr>
   );
 };

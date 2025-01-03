@@ -1,9 +1,10 @@
 import { Input } from "@/components/ui/input";
+import { formatTime } from "@/lib/utils";
 
 interface TimeDisplayProps {
   time: string | null;
   isEditing: boolean;
-  onChange: (value: string) => void;
+  onChange: (time: string) => void;
   label: string;
 }
 
@@ -20,5 +21,5 @@ export const TimeDisplay = ({ time, isEditing, onChange, label }: TimeDisplayPro
     );
   }
 
-  return <span>{time || '-'}</span>;
+  return <span>{formatTime(time)}</span>;
 };
